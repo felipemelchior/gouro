@@ -2,20 +2,117 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"net/url"
 	"os"
+	"regexp"
+	"strconv"
+	"strings"
 )
+
+type urlmap_t struct {
+	host string
+	path string
+}
+
+var urlmap = make(map[urlmap_t]url.Values)
 
 var extensions = []string{"js", "css", "png", "jpg", "jpeg", "svg", "ico", "webp",
 	"ttf", "otf", "woff", "gif", "pdf", "bmp", "eot", "mp3",
 	"mp4", "woff2", "avi"}
-
-var urlmap = make(map[string]string)
 var known_params []string
+var known_patterns []string
+var re_content, _ = regexp.Compile(`(post|blog)s?|docs|support/|/(\d{4}|pages?)/\d+/`)
+var re_int, _ = regexp.Compile(`/\d+([?/]|$)`)
 
-func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
+func isContent(path string) bool {
+	for _, part := range strings.Split(path, "/") {
+		if strings.Count(part, "-") > 3 {
+			return true
+		}
+	}
+	return false
+}
+
+func hasBadExtensions(path string) bool {
+	if path == "/" {
+		return false
+	}
+
+	for _, bad_ext := range extensions {
+		if strings.HasSuffix(path, "."+bad_ext) {
+			return true
+		}
+	}
+	return false
+}
+
+func addNewParams(params url.Values) bool {
+	var has_new_params bool
+	var new_param bool
+
+	if len(known_params) == 0 {
+		for unknown_param := range params {
+			known_params = append(known_params, unknown_param)
+		}
+		return true
+	}
+
+	has_new_params = false
+	for unknown_param := range params {
+		new_param = true
+		for _, known_param := range known_params {
+			if unknown_param == known_param {
+				new_param = false
+			}
+		}
+
+		if new_param {
+			known_params = append(known_params, unknown_param)
+			has_new_params = true
+		}
+	}
+	return has_new_params
+}
+
+func createPattern(path string) {
+	var new_parts []string
+
+	for _, part := range strings.Split(regexp.QuoteMeta(path), "/") {
+		if _, err := strconv.Atoi(part); err == nil {
+			new_parts = append(new_parts, "\\d+")
+		} else {
+			new_parts = append(new_parts, part)
+		}
+	}
+
+	addPattern := true
+	new_pattern := strings.Join(new_parts, "/")
+
+	for _, pattern := range known_patterns {
+		if pattern == new_pattern {
+			addPattern = false
+			break
+		}
+	}
+
+	if addPattern {
+		known_patterns = append(known_patterns, new_pattern)
+	}
+}
+
+func matchesPattern(path string) bool {
+	for _, pattern := range known_patterns {
+		if matched, _ := regexp.MatchString(pattern, path); matched {
+			return true
+		}
+	}
+	return false
+}
+
+func hostExists(host string, path string) bool {
+	for urlmap_aux := range urlmap {
+		if urlmap_aux.host == host && urlmap_aux.path == path {
 			return true
 		}
 	}
@@ -26,18 +123,34 @@ func main() {
 	sc := bufio.NewScanner(os.Stdin)
 	for sc.Scan() {
 		line := sc.Text()
-
 		parsed, _ := url.Parse(line)
 		host := parsed.Scheme + "://" + parsed.Host
-		if _, found := urlmap[host]; !found {
-			urlmap[host] = ""
-		}
 		params := parsed.Query()
+		has_new_params := addNewParams(params)
+		if hasBadExtensions(parsed.Path) || re_content.MatchString(parsed.Path) || isContent(parsed.Path) {
+			continue
+		}
+		if ((len(params) == 0) || has_new_params) && re_int.MatchString(parsed.Path) {
+			createPattern(parsed.Path)
 
-		for param, _ := range params {
-			if !contains(known_params, param) {
-				known_params = append(known_params, param)
+			if matchesPattern(parsed.Path) {
+				continue
 			}
+		} else if !hostExists(host, parsed.Path) {
+			urlmap_aux := urlmap_t{
+				host: host,
+				path: parsed.Path,
+			}
+			urlmap[urlmap_aux] = params
 		}
 	}
+
+	for urlmap_aux := range urlmap {
+		if len(urlmap[urlmap_aux]) > 0 {
+			fmt.Println(urlmap_aux.host + urlmap_aux.path + "?" + urlmap[urlmap_aux].Encode())
+		} else {
+			fmt.Println(urlmap_aux.host + urlmap_aux.path)
+		}
+	}
+
 }
