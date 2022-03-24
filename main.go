@@ -165,5 +165,4 @@ func main() {
 			fmt.Println(urlmap_aux.host + urlmap_aux.path)
 		}
 	}
-
 }
