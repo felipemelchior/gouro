@@ -153,7 +153,9 @@ func main() {
 			urlmap[urlmap_aux] = params
 		} else if has_new_params || compareParams(params, urlmap[urlmap_aux]) {
 			for param := range params {
-				urlmap[urlmap_aux].Add(param, params.Get(param))
+				if !urlmap[urlmap_aux].Has(param) {
+					urlmap[urlmap_aux].Add(param, params.Get(param))
+				}
 			}
 		}
 	}
