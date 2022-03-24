@@ -110,9 +110,18 @@ func matchesPattern(path string) bool {
 	return false
 }
 
-func hostExists(host string, path string) bool {
+func hostExists(urlmap_to_test urlmap_t) bool {
 	for urlmap_aux := range urlmap {
-		if urlmap_aux.host == host && urlmap_aux.path == path {
+		if urlmap_aux.host == urlmap_to_test.host && urlmap_aux.path == urlmap_to_test.path {
+			return true
+		}
+	}
+	return false
+}
+
+func compareParams(new_params url.Values, og_params url.Values) bool {
+	for param := range new_params {
+		if !og_params.Has(param) {
 			return true
 		}
 	}
@@ -130,18 +139,22 @@ func main() {
 		if hasBadExtensions(parsed.Path) || re_content.MatchString(parsed.Path) || isContent(parsed.Path) {
 			continue
 		}
+		urlmap_aux := urlmap_t{
+			host: host,
+			path: parsed.Path,
+		}
 		if ((len(params) == 0) || has_new_params) && re_int.MatchString(parsed.Path) {
 			createPattern(parsed.Path)
 
 			if matchesPattern(parsed.Path) {
 				continue
 			}
-		} else if !hostExists(host, parsed.Path) {
-			urlmap_aux := urlmap_t{
-				host: host,
-				path: parsed.Path,
-			}
+		} else if !hostExists(urlmap_aux) {
 			urlmap[urlmap_aux] = params
+		} else if has_new_params || compareParams(params, urlmap[urlmap_aux]) {
+			for param := range params {
+				urlmap[urlmap_aux].Add(param, params.Get(param))
+			}
 		}
 	}
 
