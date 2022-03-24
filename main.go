@@ -131,7 +131,10 @@ func main() {
 	sc := bufio.NewScanner(os.Stdin)
 	for sc.Scan() {
 		line := sc.Text()
-		parsed, _ := url.Parse(line)
+		parsed, err := url.Parse(line)
+		if err != nil {
+			continue
+		}
 		host := parsed.Scheme + "://" + parsed.Host
 		params := parsed.Query()
 		has_new_params := addNewParams(params)
