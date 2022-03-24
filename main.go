@@ -88,7 +88,6 @@ func createPattern(path string) {
 
 	addPattern := true
 	new_pattern := strings.Join(new_parts, "/")
-
 	for _, pattern := range known_patterns {
 		if pattern == new_pattern {
 			addPattern = false
@@ -144,10 +143,11 @@ func main() {
 			path: parsed.Path,
 		}
 		if ((len(params) == 0) || has_new_params) && re_int.MatchString(parsed.Path) {
-			createPattern(parsed.Path)
-
 			if matchesPattern(parsed.Path) {
 				continue
+			} else {
+				createPattern(parsed.Path)
+				urlmap[urlmap_aux] = params
 			}
 		} else if !hostExists(urlmap_aux) {
 			urlmap[urlmap_aux] = params
